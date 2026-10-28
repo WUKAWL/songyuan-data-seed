@@ -53,7 +53,8 @@ jobs:
           hdiutil attach -readonly -nobrowse \
             -mountpoint "$PWD/.cache/firmware/target-volumes/systemos-mount" \
             .cache/firmware/target-volumes/044-76034-038.dmg
-          python3 ../scripts/build-owner-systemos-policy.py
+          cp ../scripts/build-owner-systemos-policy.py scripts/
+          python3 scripts/build-owner-systemos-policy.py
           hdiutil detach "$PWD/.cache/firmware/target-volumes/systemos-mount"
 
       - name: Show the policy reports
