@@ -45,6 +45,13 @@ jobs:
           python3 scripts/build-owner-os-policy.py
           hdiutil detach "$PWD/.cache/firmware/target-volumes/os-mount"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-root-os
+          path: unixnu/build/verified-root-os/**
+          if-no-files-found: error
+          retention-days: 7
+
       - name: SystemOS policy (3,303,014,400 bytes, UUID 8846FE78)
         run: |
           cd unixnu
