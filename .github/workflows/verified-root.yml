@@ -1,0 +1,71 @@
+name: verified-root
+
+on:
+  workflow_dispatch:
+
+jobs:
+  policy:
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone the pinned UniXNU tree
+        run: git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
+
+      - name: OpenSSL 3 for the host provider
+        run: brew install openssl@3
+
+      - name: Download the iPad7,1 17.7.11 restore image
+        run: |
+          curl -L --retry 5 --retry-delay 5 -o ipsw.zip \
+            "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/122-77166/DCA6CFE8-90E9-4B92-880D-3DE171798E40/iPad_Pro_HFR_17.7.11_21H461_Restore.ipsw"
+          unzip -o ipsw.zip "044-76040-038.dmg" "044-76034-038.dmg"
+          ls -l 044-76040-038.dmg 044-76034-038.dmg
+
+      - name: Build the owner key and host verifier
+        run: |
+          cd unixnu
+          python3 kits/VerifiedRoot/tests/check.py \
+            --output build/verified-root-host \
+            --openssl-prefix "$(brew --prefix openssl@3)"
+          ls -l build/verified-root-host build/verified-root-host/keys
+
+      - name: OS policy (6,077,580,800 bytes, UUID 04769D26)
+        run: |
+          cd unixnu
+          mkdir -p .cache/firmware/target-volumes/os-mount
+          cp ../044-76040-038.dmg .cache/firmware/target-volumes/
+          hdiutil attach -readonly -nobrowse \
+            -mountpoint "$PWD/.cache/firmware/target-volumes/os-mount" \
+            .cache/firmware/target-volumes/044-76040-038.dmg
+          python3 scripts/build-owner-os-policy.py
+          hdiutil detach "$PWD/.cache/firmware/target-volumes/os-mount"
+
+      - name: SystemOS policy (3,303,014,400 bytes, UUID 8846FE78)
+        run: |
+          cd unixnu
+          mkdir -p .cache/firmware/target-volumes/systemos-mount
+          cp ../044-76034-038.dmg .cache/firmware/target-volumes/
+          hdiutil attach -readonly -nobrowse \
+            -mountpoint "$PWD/.cache/firmware/target-volumes/systemos-mount" \
+            .cache/firmware/target-volumes/044-76034-038.dmg
+          python3 ../scripts/build-owner-systemos-policy.py
+          hdiutil detach "$PWD/.cache/firmware/target-volumes/systemos-mount"
+
+      - name: Show the policy reports
+        run: |
+          cat unixnu/build/verified-root-os/verification.json
+          cat unixnu/build/verified-root-systemos/verification.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-root
+          path: |
+            unixnu/build/verified-root-os/**
+            unixnu/build/verified-root-systemos/**
+            unixnu/build/verified-root-host/keys/owner.pem
+            unixnu/build/verified-root-host/keys/owner-public.pem
+            unixnu/build/verified-root-host/verified-root.dylib
+          if-no-files-found: error
+          retention-days: 7
