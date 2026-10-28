@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import stat
 import subprocess
@@ -32,7 +33,8 @@ found = [i for i in images if Path(i['image-path']).resolve() == source.resolve(
 if len(found) != 1:
     raise SystemExit('Require one existing exact read-only image attachment')
 entities = found[0]['system-entities']
-whole = [e['dev-entry'] for e in entities if e.get('content-hint') == 'GUID_partition_scheme']
+print('entities:', [(e.get('dev-entry'), e.get('content-hint'), e.get('mount-point')) for e in entities])
+whole = [e['dev-entry'] for e in entities if re.fullmatch(r'/dev/disk\d+', e.get('dev-entry', ''))]
 if len(whole) != 1:
     raise SystemExit('Require one actual whole virtual media mapping')
 info = plistlib.loads(subprocess.check_output(['diskutil', 'info', '-plist', whole[0]]))
