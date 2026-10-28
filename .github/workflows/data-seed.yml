@@ -1,0 +1,49 @@
+name: data-seed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the iPad7,1 17.7.11 restore image
+        run: |
+          curl -L --retry 5 --retry-delay 5 -o ipsw.zip \
+            "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/122-77166/DCA6CFE8-90E9-4B92-880D-3DE171798E40/iPad_Pro_HFR_17.7.11_21H461_Restore.ipsw"
+          ls -l ipsw.zip
+
+      - name: Extract and mount the OS volume
+        run: |
+          unzip -o ipsw.zip "044-76040-038.dmg"
+          mkdir -p os
+          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/os" 044-76040-038.dmg
+          test "$(shasum -a 256 os/sbin/launchd | cut -d' ' -f1)" = "8cec9a3c44a443b08e977ccc5d577850316ad428c575dc01f09b018dbd5b6a25"
+
+      - name: Create the 32 MiB APFS Data seed
+        run: |
+          hdiutil create -size 32m -layout NONE -fs APFS -volname OwnerData -type UDTO -o owner-data-32
+          ls -l owner-data-32.cdr
+          mkdir -p data
+          hdiutil attach -nobrowse -owners off -mountpoint "$PWD/data" owner-data-32.cdr
+          rsync -a --exclude staged_system_apps os/private/var/ data/
+          mkdir -p data/keybags data/mobile/tmp data/tmp data/run
+          chmod 1777 data/tmp
+          diskutil info -plist "$PWD/data" > data-info.plist
+          hdiutil detach "$PWD/data"
+          hdiutil detach "$PWD/os"
+
+      - name: Record the seed identity
+        run: python3 scripts/make-seed-report.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: songyuan-data-seed
+          path: |
+            owner-data-32.cdr
+            seed.json
+          if-no-files-found: error
+          retention-days: 7
