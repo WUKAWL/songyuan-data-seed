@@ -23,10 +23,10 @@ with source.open('rb') as stream:
     for chunk in iter(lambda: stream.read(1024 * 1024), b''):
         digest.update(chunk)
     stream.seek(-512, 2)
-    if stream.read(4) != b'koly':
-        raise SystemExit('Expected the actual original UDIF trailer')
+    # The SystemOS member is a raw APFS image (no UDIF trailer); the OS member is UDIF.
+    source_format = 'UDIF' if stream.read(4) == b'koly' else 'raw'
 if digest.hexdigest() != 'b4908cde41d23e6bc05e6af51a2c9eeb00cf0f863a6a18b1600c96a3fd70414f':
-    raise SystemExit('The compressed image must be the exact supplied iPad7,1 OS member')
+    raise SystemExit('The image must be the exact supplied iPad7,1 SystemOS member')
 images = plistlib.loads(subprocess.check_output(['hdiutil', 'info', '-plist']))['images']
 found = [i for i in images if Path(i['image-path']).resolve() == source.resolve() and i.get('writeable') is False]
 if len(found) != 1:
@@ -85,7 +85,7 @@ if complete.digest() != bytes(view.image_sha256) or complete.hexdigest() != reco
 (out / 'original-samples.bin').write_bytes(b''.join(samples))
 report = dict(image_bytes=view.image_bytes, blocks_verified=view.block_count, image_sha256=complete.hexdigest(),
               volume_uuid=str(expected_uuid).upper(), generation=view.generation,
-              source_compressed_sha256=digest.hexdigest(), source_format='UDIF',
+              source_compressed_sha256=digest.hexdigest(), source_format=source_format,
               host_bus_protocol='Disk Image', host_media_writable=False,
               trusted_key_sha256=record['trusted_key_sha256'], actual_sample_indices=indices,
               actual_sample_lengths=lengths, real_c_signature_and_block_verification=True,
