@@ -11,7 +11,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Clone the pinned UniXNU tree
-        run: git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
+        run: |
+          git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
+          git -C unixnu submodule update --init --depth 1 kits/VerifiedRoot
+          ls unixnu/kits/VerifiedRoot/tests/check.py
 
       - name: OpenSSL 3 for the host provider
         run: brew install openssl@3
